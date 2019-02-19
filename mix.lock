@@ -1,0 +1,6 @@
+%{
+  "ex_aws": {:hex, :ex_aws, "2.1.0", "b92651527d6c09c479f9013caa9c7331f19cba38a650590d82ebf2c6c16a1d8a", [:mix], [{:configparser_ex, "~> 2.0", [hex: :configparser_ex, repo: "hexpm", optional: true]}, {:hackney, "1.6.3 or 1.6.5 or 1.7.1 or 1.8.6 or ~> 1.9", [hex: :hackney, repo: "hexpm", optional: true]}, {:jsx, "~> 2.8", [hex: :jsx, repo: "hexpm", optional: true]}, {:poison, ">= 1.2.0", [hex: :poison, repo: "hexpm", optional: true]}, {:sweet_xml, "~> 0.6", [hex: :sweet_xml, repo: "hexpm", optional: true]}, {:xml_builder, "~> 0.1.0", [hex: :xml_builder, repo: "hexpm", optional: true]}], "hexpm"},
+  "ex_aws_kinesis": {:hex, :ex_aws_kinesis, "2.0.1", "7f8746e89904ccc6da2c9575e8fe08584e189b2739d964968bba2b9ec1f57fd6", [:mix], [{:ex_aws, "~> 2.0", [hex: :ex_aws, repo: "hexpm", optional: false]}], "hexpm"},
+  "mox": {:hex, :mox, "0.5.0", "c519b48407017a85f03407a9a4c4ceb7cc6dec5fe886b2241869fb2f08476f9e", [:mix], [], "hexpm"},
+  "poison": {:hex, :poison, "2.2.0", "4763b69a8a77bd77d26f477d196428b741261a761257ff1cf92753a0d4d24a63", [:mix], [], "hexpm"},
+}
