@@ -22,9 +22,11 @@ defmodule Convoy.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:hackney, "~> 1.15"},
       {:ex_aws, "~> 2.1.0"},
       {:ex_aws_kinesis, "~> 2.0.1"},
       {:poison, "~> 2.0"},
+      {:gen_stage, "~> 0.11"},
       {:mox, "~> 0.4", only: :test}
     ]
   end
