@@ -35,7 +35,7 @@ defmodule Convoy.Queue do
          stream: stream,
          shards: shards(stream, service),
          batch_timeout: batch_timeout,
-         iterator_type: opts[:iterator_type]
+         iterator_type: opts[:iterator_type] || :latest
        }
      }}
   end
@@ -61,9 +61,9 @@ defmodule Convoy.Queue do
     # TODO: limit how many we take from the queue in a batch?
     queue
     |> :queue.to_list()
-    |> transmit_to(opts[:stream], with: opts[:service])
+    |> transmit_to(opts.stream, with: opts.service)
 
-    batch_transmit_after(opts[:batch_timeout])
+    batch_transmit_after(opts.batch_timeout)
 
     {:noreply, {:queue.new(), opts}}
   end
@@ -88,6 +88,9 @@ defmodule Convoy.Queue do
     {:reply, records,
      {queue, %{opts | shards: rotate_in(shards, %{shard | iterator: next_iterator})}}}
   end
+
+  # Empty queue is a no-op
+  defp transmit_to([], _stream, with: _service), do: nil
 
   defp transmit_to(records, stream, with: service) do
     service.put_records(stream, records)
