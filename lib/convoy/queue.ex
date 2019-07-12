@@ -53,6 +53,13 @@ defmodule Convoy.Queue do
     GenServer.call(:"stream_#{stream}", {:get_records, limit})
   end
 
+  @doc """
+  Transmit the outbound queue
+  """
+  def flush(stream) do
+    send(:"stream_#{stream}", :transmit)
+  end
+
   def handle_cast({:put_record, record}, {queue, opts}) do
     {:noreply, {:queue.in(record, queue), opts}}
   end

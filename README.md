@@ -34,3 +34,26 @@ config :ex_aws,
 ### Local Development ###
 
 We recommend running Kinesalite locally for development.
+
+
+
+
+
+```
+{:ok, response} = ExAws.Kinesis.describe_stream("device_service_dev") |> ExAws.request
+shard_id = response["StreamDescription"]["Shards"] |> hd() |> Map.get("ShardId")
+
+{:ok, iterator} = ExAws.Kinesis.get_shard_iterator("device_service_dev", shard_id, :latest) |> ExAws.request
+
+# get the shard id and iterator at gen_server/gen_stage init
+
+{:ok, response} = ExAws.Kinesis.get_records(iterator["ShardIterator"], %{limit: 10}) |> ExAws.request
+
+# includes the next shard iterator … store in database in case we crash
+
+# route the work to the next gen_stage based on the partition key
+
+# is there any way to filter records on partition key?
+
+Convoy.Queue.put("device_service_dev", "devices", "{}")
+```
