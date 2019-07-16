@@ -1,6 +1,8 @@
 defmodule Convoy.Queue do
   use GenServer
 
+  @behaviour Convoy.QueueBehaviour
+
   @batch_timeout_ms 5000
   @default_service Convoy.Services.Kinesis
 
@@ -9,6 +11,8 @@ defmodule Convoy.Queue do
   end
 
   defmodule Record do
+    @type t :: %__MODULE__{data: binary(), partition_key: binary()}
+
     defstruct data: "{}", partition_key: nil
   end
 
