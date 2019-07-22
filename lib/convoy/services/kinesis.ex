@@ -19,7 +19,7 @@ defmodule Convoy.Services.Kinesis do
     |> case do
       {:ok, %{"Records" => records, "NextShardIterator" => next_iterator}} ->
         {
-          records |> decode_data(),
+          records |> decode_records(),
           next_iterator
         }
 
@@ -48,8 +48,10 @@ defmodule Convoy.Services.Kinesis do
     |> ExAws.request!()
   end
 
-  defp decode_data(records) do
+  defp decode_records(records) do
     records
-    |> Enum.map(fn %{"Data" => data} -> Base.decode64(data) end)
+    |> Enum.map(fn %{"Data" => data, "PartitionKey" => key} ->
+      %{partition_key: key, data: Base.decode64(data)}
+    end)
   end
 end
