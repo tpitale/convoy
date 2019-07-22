@@ -20,6 +20,15 @@ defmodule Convoy.Queue do
     defstruct id: nil, iterator: nil
   end
 
+  def child_spec(opts) do
+    %{
+      id: :"stream_#{opts[:stream]}",
+      start: {__MODULE__, :start_link, [opts]},
+      restart: :transient,
+      type: :worker
+    }
+  end
+
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: :"stream_#{opts[:stream]}")
   end
