@@ -51,7 +51,7 @@ defmodule Convoy.Services.Kinesis do
   defp decode_records(records) do
     records
     |> Enum.map(fn %{"Data" => data, "PartitionKey" => key} ->
-      %{partition_key: key, data: Base.decode64(data)}
+      %{partition_key: key, data: Base.decode64!(data)}
     end)
   end
 end
