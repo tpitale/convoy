@@ -73,15 +73,19 @@ defmodule Convoy.Queue do
     send(:"stream_#{stream}", :transmit)
   end
 
+  def handle_cast({:put_record, record}, {queue, %{batch_timeout: 0} = opts}) do
+    # TODO: what is a reasonable minimum batch timeout? 20ms? 50ms?
+    transmit_to([record], opts.stream, with: opts.service)
+
+    {:noreply, {queue, opts}}
+  end
+
   def handle_cast({:put_record, record}, {queue, opts}) do
     {:noreply, {:queue.in(record, queue), opts}}
   end
 
   def handle_info(:transmit, {queue, opts}) do
-    # TODO: limit how many we take from the queue in a batch?
-    queue
-    |> :queue.to_list()
-    |> transmit_to(opts.stream, with: opts.service)
+    transmit_to(queue, opts.stream, with: opts.service)
 
     batch_transmit_after(opts.batch_timeout)
 
@@ -112,8 +116,14 @@ defmodule Convoy.Queue do
   # Empty queue is a no-op
   defp transmit_to([], _stream, with: _service), do: nil
 
-  defp transmit_to(records, stream, with: service) do
+  defp transmit_to(records, stream, with: service) when is_list(records) do
     service.put_records(stream, records)
+  end
+
+  defp transmit_to(queue, stream, with: service) do
+    queue
+    |> :queue.to_list()
+    |> transmit_to(stream, with: service)
   end
 
   defp batch_transmit_after(timeout) when timeout > 0 do

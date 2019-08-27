@@ -24,7 +24,7 @@ defmodule Convoy.QueueTest do
     {:ok, _pid} =
       Convoy.Queue.start_link(%{
         stream: @stream_name,
-        batch_timeout: 0,
+        batch_timeout: -1,
         service: Convoy.MockService
       })
 
@@ -48,7 +48,7 @@ defmodule Convoy.QueueTest do
        %{
          service: Convoy.MockService,
          stream: @stream_name,
-         batch_timeout: 0
+         batch_timeout: -1
        }}
 
     parent_id = self()
@@ -60,6 +60,41 @@ defmodule Convoy.QueueTest do
       end)
 
     Convoy.Queue.handle_info(:transmit, state)
+
+    verify!(service_mock)
+
+    assert_received({
+      :put_records,
+      [
+        "device_service_test",
+        [%Convoy.Queue.Record{partition_key: "devices", data: "{\"id\":2000012345}"}]
+      ]
+    })
+  end
+
+  test "transmits immediately if batch_timeout is 0" do
+    record = %Record{
+      data: %{id: 2_000_012_345} |> Poison.encode!(),
+      partition_key: "devices"
+    }
+
+    state =
+      {:queue.new(),
+       %{
+         service: Convoy.MockService,
+         stream: @stream_name,
+         batch_timeout: 0
+       }}
+
+    parent_id = self()
+
+    service_mock =
+      Convoy.MockService
+      |> expect(:put_records, 1, fn stream_name, records ->
+        send(parent_id, {:put_records, [stream_name, records]})
+      end)
+
+    Convoy.Queue.handle_cast({:put_record, record}, state)
 
     verify!(service_mock)
 
@@ -87,7 +122,7 @@ defmodule Convoy.QueueTest do
     {:ok, _pid} =
       Convoy.Queue.start_link(%{
         stream: @stream_name,
-        batch_timeout: 0,
+        batch_timeout: -1,
         service: Convoy.MockService
       })
 
@@ -104,7 +139,7 @@ defmodule Convoy.QueueTest do
        %Convoy.Queue.State{
          service: Convoy.MockService,
          stream: @stream_name,
-         batch_timeout: 0,
+         batch_timeout: -1,
          shards: [%Convoy.Queue.Shard{id: "shard1-00001", iterator: nil}]
        }}
 
@@ -141,7 +176,7 @@ defmodule Convoy.QueueTest do
        %Convoy.Queue.State{
          service: Convoy.MockService,
          stream: @stream_name,
-         batch_timeout: 0,
+         batch_timeout: -1,
          shards: [%Convoy.Queue.Shard{id: "shard1-00001", iterator: "random-iterator-value"}]
        }}
 
