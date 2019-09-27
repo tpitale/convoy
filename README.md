@@ -24,6 +24,22 @@ need to start one after startup, you can make use of `DynamicSupervisor`.
 {Convoy.Queue, [stream: :your_stream_name]}
 ```
 
+## Attaching a Handler ##
+
+```ex
+Convoy.Queue.attach(
+  stream_id :: binary | atom,
+  handler_id :: binary,
+  handler_function/2,
+  info :: map
+)
+```
+
+Where `handler_function` has an arity of 2 and accepts an individual `record`
+along with the `info` map you pass in (useful for later matching your function).
+
+Any time a call to `Convoy.Queue.get` will notify these handlers with records.
+
 ## Queue Configuration ##
 
 The only required option is `stream`. The `stream` option will be used as the
