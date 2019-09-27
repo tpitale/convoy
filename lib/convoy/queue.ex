@@ -3,19 +3,20 @@ defmodule Convoy.Queue do
 
   @behaviour Convoy.QueueBehaviour
 
-  @batch_timeout_ms 5000
-  @default_service Convoy.Services.Kinesis
-
-  def batch_timeout_ms, do: @batch_timeout_ms
-  def default_service, do: @default_service
-
   defmodule State do
+    @batch_timeout_ms 5000
+    @default_service Convoy.Services.Kinesis
+
+    def batch_timeout_ms(), do: @batch_timeout_ms
+    def default_service(), do: @default_service
+
     defstruct stream: nil,
               stream_id: nil,
-              service: Convoy.Queue.default_service(),
-              batch_timeout: Convoy.Queue.batch_timeout_ms(),
+              service: @default_service,
+              batch_timeout: @batch_timeout_ms,
               poll_interval: nil,
               shards: [],
+              handlers: %{},
               iterator_type: :latest
   end
 
@@ -49,24 +50,27 @@ defmodule Convoy.Queue do
   def init(opts) do
     stream_id = stream_id(opts)
     stream = opts[:stream]
-    service = opts[:service] || @default_service
-    batch_timeout = opts[:batch_timeout] || @batch_timeout_ms
+    service = opts[:service] || State.default_service()
+    batch_timeout = opts[:batch_timeout] || State.batch_timeout_ms()
 
     batch_transmit_after(batch_timeout)
 
-    {:ok,
-     {
-       :queue.new(),
-       %State{
-         service: service,
-         stream_id: stream_id,
-         stream: stream,
-         shards: shards(stream, service),
-         batch_timeout: batch_timeout,
-         poll_interval: opts[:poll_interval],
-         iterator_type: opts[:iterator_type] || :latest
-       }
-     }}
+    {
+      :ok,
+      {
+        :queue.new(),
+        %State{
+          service: service,
+          stream_id: stream_id,
+          stream: stream,
+          shards: shards(stream, service),
+          batch_timeout: batch_timeout,
+          poll_interval: opts[:poll_interval],
+          iterator_type: opts[:iterator_type] || :latest
+        }
+      },
+      {:continue, :start_polling}
+    }
   end
 
   def put(stream_id, partition_key, data) do
@@ -89,6 +93,20 @@ defmodule Convoy.Queue do
     send(:"stream_#{stream_id}", :transmit)
   end
 
+  def attach(stream_id, handler_id, handler_fn, extra_opts) do
+    GenServer.cast(:"stream_#{stream_id}", {:attach, handler_id, {handler_fn, extra_opts}})
+  end
+
+  def detach(stream_id, handler_id) do
+    GenServer.cast(:"stream_#{stream_id}", {:detach, handler_id})
+  end
+
+  def handle_continue(:start_polling, {_, opts} = state) do
+    next_poll(opts.poll_interval)
+
+    {:noreply, state}
+  end
+
   def handle_cast({:put_record, record}, {queue, %{batch_timeout: 0} = opts}) do
     # TODO: what is a reasonable minimum batch timeout? 20ms? 50ms?
     transmit_to([record], opts.stream, with: opts.service)
@@ -100,9 +118,12 @@ defmodule Convoy.Queue do
     {:noreply, {:queue.in(record, queue), opts}}
   end
 
-  # TODO: polling time
-  def handle_cast({:subscribe, match_fn, call_fn}, {queue, opts}) do
-    {:noreply, {queue, %{opts | subscribers: [{match_fn, call_fn}, opts.subscribers]}}}
+  def handle_cast({:attach, handler_id, handler}, {queue, opts}) do
+    {:noreply, {queue, %{opts | handlers: Map.put(opts.handlers, handler_id, handler)}}}
+  end
+
+  def handle_cast({:detach, handler_id}, {queue, opts}) do
+    {:noreply, {queue, %{opts | handlers: Map.delete(opts.handlers, handler_id)}}}
   end
 
   def handle_info(:transmit, {queue, opts}) do
@@ -113,11 +134,33 @@ defmodule Convoy.Queue do
     {:noreply, {:queue.new(), opts}}
   end
 
+  # Do not get_records when there are no handlers
+  def handle_info(:poll, {_, %{handlers: handlers} = opts} = state) when handlers == %{} do
+    next_poll(opts.poll_interval)
+
+    {:noreply, state}
+  end
+
+  def handle_info(:poll, {_, opts} = state) do
+    # TODO: tunable limit option
+    {_records, new_state} = get_records(10, state)
+
+    next_poll(opts.poll_interval)
+
+    {:noreply, new_state}
+  end
+
   def handle_call(:current_queue, _from, {queue, opts}) do
     {:reply, queue |> :queue.to_list(), {queue, opts}}
   end
 
-  def handle_call({:get_records, limit}, _from, {queue, opts}) do
+  def handle_call({:get_records, limit}, _from, state) do
+    {records, new_state} = get_records(limit, state)
+
+    {:reply, records, new_state}
+  end
+
+  defp get_records(limit, {queue, opts}) do
     {shard, shards} = rotate_out(opts.shards)
 
     {records, next_iterator} =
@@ -130,8 +173,12 @@ defmodule Convoy.Queue do
       end
       |> opts.service.get_records(limit: limit)
 
-    {:reply, records,
-     {queue, %{opts | shards: rotate_in(shards, %{shard | iterator: next_iterator})}}}
+    notify_handlers(records, opts.handlers, opts.stream_id)
+
+    {
+      records,
+      {queue, %{opts | shards: rotate_in(shards, %{shard | iterator: next_iterator})}}
+    }
   end
 
   # Empty queue is a no-op
@@ -167,4 +214,21 @@ defmodule Convoy.Queue do
 
   defp rotate_out([shard | shards]), do: {shard, shards}
   defp rotate_in(shards, shard), do: shards ++ [shard]
+
+  defp next_poll(nil), do: nil
+  defp next_poll(interval) when interval <= 0, do: nil
+  defp next_poll(interval), do: Process.send_after(self(), :poll, interval)
+
+  defp notify_handlers(records, handlers, stream_id) do
+    Enum.each(handlers, &notify_handler(records, &1, stream_id))
+  end
+
+  defp notify_handler(records, {handler_id, {handle_fn, info}}, stream_id) do
+    try do
+      Enum.each(records, &handle_fn.(&1, info))
+    rescue
+      # TODO: emit logs?
+      _e -> detach(stream_id, handler_id)
+    end
+  end
 end
