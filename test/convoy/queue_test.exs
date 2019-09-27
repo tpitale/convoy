@@ -16,6 +16,8 @@ defmodule Convoy.QueueTest do
   test "puts a record into the batch" do
     set_mox_global()
 
+    stream_id = :"#{@stream_name}_1"
+
     Convoy.MockService
     |> stub(:describe_stream, fn _stream_name ->
       %{"StreamDescription" => %{"Shards" => []}}
@@ -24,15 +26,16 @@ defmodule Convoy.QueueTest do
     {:ok, _pid} =
       Convoy.Queue.start_link(%{
         stream: @stream_name,
+        stream_id: stream_id,
         batch_timeout: -1,
         service: Convoy.MockService
       })
 
     records = [%Record{partition_key: "devices", data: "{\"id\":2000012345}"}]
 
-    Convoy.Queue.put(@stream_name, "devices", %{id: 2_000_012_345})
+    Convoy.Queue.put(stream_id, "devices", %{id: 2_000_012_345})
 
-    assert records == GenServer.call(:"stream_#{@stream_name}", :current_queue)
+    assert records == GenServer.call(:"stream_#{stream_id}", :current_queue)
   end
 
   test "transmits a batch of records to service" do

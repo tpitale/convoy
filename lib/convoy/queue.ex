@@ -7,7 +7,12 @@ defmodule Convoy.Queue do
   @default_service Convoy.Services.Kinesis
 
   defmodule State do
-    defstruct stream: nil, service: nil, batch_timeout: nil, shards: [], iterator_type: :latest
+    defstruct stream: nil,
+              stream_id: nil,
+              service: nil,
+              batch_timeout: nil,
+              shards: [],
+              iterator_type: :latest
   end
 
   defmodule Record do
@@ -20,9 +25,13 @@ defmodule Convoy.Queue do
     defstruct id: nil, iterator: nil
   end
 
+  def stream_id(%{stream_id: stream_id}), do: stream_id
+  def stream_id(%{stream: stream}), do: stream
+  def stream_id(%{stream_id: nil, stream: stream}), do: stream
+
   def child_spec(opts) do
     %{
-      id: :"stream_#{opts[:stream]}",
+      id: :"stream_#{stream_id(opts)}",
       start: {__MODULE__, :start_link, [opts]},
       restart: :transient,
       type: :worker
@@ -30,10 +39,11 @@ defmodule Convoy.Queue do
   end
 
   def start_link(opts) do
-    GenServer.start_link(__MODULE__, opts, name: :"stream_#{opts[:stream]}")
+    GenServer.start_link(__MODULE__, opts, name: :"stream_#{stream_id(opts)}")
   end
 
   def init(opts) do
+    stream_id = stream_id(opts)
     stream = opts[:stream]
     service = opts[:service] || @default_service
     batch_timeout = opts[:batch_timeout] || @batch_timeout_ms
@@ -45,6 +55,7 @@ defmodule Convoy.Queue do
        :queue.new(),
        %State{
          service: service,
+         stream_id: stream_id,
          stream: stream,
          shards: shards(stream, service),
          batch_timeout: batch_timeout,
@@ -53,24 +64,24 @@ defmodule Convoy.Queue do
      }}
   end
 
-  def put(stream, partition_key, data) do
+  def put(stream_id, partition_key, data) do
     record = %Record{
       partition_key: partition_key,
       data: data |> encode()
     }
 
-    GenServer.cast(:"stream_#{stream}", {:put_record, record})
+    GenServer.cast(:"stream_#{stream_id}", {:put_record, record})
   end
 
-  def get(stream, limit \\ 10) do
-    GenServer.call(:"stream_#{stream}", {:get_records, limit})
+  def get(stream_id, limit \\ 10) do
+    GenServer.call(:"stream_#{stream_id}", {:get_records, limit})
   end
 
   @doc """
   Transmit the outbound queue
   """
-  def flush(stream) do
-    send(:"stream_#{stream}", :transmit)
+  def flush(stream_id) do
+    send(:"stream_#{stream_id}", :transmit)
   end
 
   def handle_cast({:put_record, record}, {queue, %{batch_timeout: 0} = opts}) do
@@ -82,6 +93,11 @@ defmodule Convoy.Queue do
 
   def handle_cast({:put_record, record}, {queue, opts}) do
     {:noreply, {:queue.in(record, queue), opts}}
+  end
+
+  # TODO: polling time
+  def handle_cast({:subscribe, match_fn, call_fn}, {queue, opts}) do
+    {:noreply, {queue, %{opts | subscribers: [{match_fn, call_fn}, opts.subscribers]}}}
   end
 
   def handle_info(:transmit, {queue, opts}) do
