@@ -6,11 +6,15 @@ defmodule Convoy.Queue do
   @batch_timeout_ms 5000
   @default_service Convoy.Services.Kinesis
 
+  def batch_timeout_ms, do: @batch_timeout_ms
+  def default_service, do: @default_service
+
   defmodule State do
     defstruct stream: nil,
               stream_id: nil,
-              service: nil,
-              batch_timeout: nil,
+              service: Convoy.Queue.default_service(),
+              batch_timeout: Convoy.Queue.batch_timeout_ms(),
+              poll_interval: nil,
               shards: [],
               iterator_type: :latest
   end
@@ -59,6 +63,7 @@ defmodule Convoy.Queue do
          stream: stream,
          shards: shards(stream, service),
          batch_timeout: batch_timeout,
+         poll_interval: opts[:poll_interval],
          iterator_type: opts[:iterator_type] || :latest
        }
      }}
