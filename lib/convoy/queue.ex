@@ -3,6 +3,8 @@ defmodule Convoy.Queue do
 
   @behaviour Convoy.QueueBehaviour
 
+  @type stream_identifier :: binary | atom
+
   defmodule State do
     @batch_timeout_ms 5000
     @default_service Convoy.Services.Kinesis
@@ -73,6 +75,11 @@ defmodule Convoy.Queue do
     }
   end
 
+  @doc """
+  Put a record into the stream or stream identifier with a given partition key
+  and data value.
+  """
+  @spec put(stream_identifier(), binary(), map()) :: any
   def put(stream_id, partition_key, data) do
     record = %Record{
       partition_key: partition_key,
@@ -82,6 +89,10 @@ defmodule Convoy.Queue do
     GenServer.cast(:"stream_#{stream_id}", {:put_record, record})
   end
 
+  @doc """
+  Get a list of records for a stream or stream identifier
+  """
+  @spec get(stream_identifier(), integer()) :: [Record.t()]
   def get(stream_id, limit \\ 10) do
     GenServer.call(:"stream_#{stream_id}", {:get_records, limit})
   end
@@ -89,14 +100,23 @@ defmodule Convoy.Queue do
   @doc """
   Transmit the outbound queue
   """
+  @spec flush(stream_identifier()) :: any
   def flush(stream_id) do
     send(:"stream_#{stream_id}", :transmit)
   end
 
+  @doc """
+  Attach a handler function on the stream
+  """
+  @spec attach(stream_identifier(), binary(), function(), map()) :: any
   def attach(stream_id, handler_id, handler_fn, extra_opts) do
     GenServer.cast(:"stream_#{stream_id}", {:attach, handler_id, {handler_fn, extra_opts}})
   end
 
+  @doc """
+  Detach a handler function from the stream
+  """
+  @spec detach(stream_identifier(), binary()) :: any
   def detach(stream_id, handler_id) do
     GenServer.cast(:"stream_#{stream_id}", {:detach, handler_id})
   end
