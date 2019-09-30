@@ -15,7 +15,74 @@ def deps do
 end
 ```
 
-### Configuration ###
+## Starting a Queue ##
+
+Any `Queue` should be supervised, so add it to your supervision tree. Or, if you
+need to start one after startup, you can make use of `DynamicSupervisor`.
+
+```ex
+{Convoy.Queue, [stream: :your_stream_name]}
+```
+
+## Attaching a Handler ##
+
+```ex
+Convoy.Queue.attach(
+  stream_id :: binary | atom,
+  handler_id :: binary,
+  handler_function/2,
+  info :: map
+)
+```
+
+Where `handler_function` has an arity of 2 and accepts an individual `record`
+along with the `info` map you pass in (useful for later matching your function).
+
+Any time a call to `Convoy.Queue.get` will notify these handlers with records.
+
+## Queue Configuration ##
+
+The only required option is `stream`. The `stream` option will be used as the
+`stream_id`, if none is provided.
+
+If you wish to connect to the same stream multiple times, you have to pass
+a `stream_id`. It is not possible to use the same `stream` as the identifier.
+
+```ex
+# Defaults
+%{
+  stream: nil,
+  stream_id: nil,
+  service: Convoy.Services.Kinesis,
+  batch_timeout: 5000,
+  poll_interval: nil,
+  iterator_type: :latest
+}
+```
+
+### Batch Timeout ###
+
+If you wish to disable batching, or increase the frequency of batches transmitting
+to the service, you can change the `batch_timeout` option from the default of 5
+seconds. This value is configured in `ms`, so 5000 is 5 seconds.
+
+Setting this value to `0` will disable batching.
+
+### Poll Interval ###
+
+Disabled by default, setting the `poll_interval` value will configure the `Queue`
+to poll for new records at that interval. You'll want to combine this with calls
+to `attach_handler/4`. Polling will begin only after there is at least one handler
+attached for the `stream_id`. If all handlers are detached, polling will stop.
+
+### Service ###
+
+At this time, Convoy only supports Kinesis, but you can write your own `service`
+that fulfills the `Convoy.Service` behaviour.
+
+**TODO:** Planned support for services like SQS and Kafka.
+
+### Kinesis Configuration ###
 
 If using Kinesis, configure the underlying `ex_aws_kinesis` library in your `dev.exs`:
 
