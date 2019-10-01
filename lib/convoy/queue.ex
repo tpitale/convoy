@@ -49,7 +49,9 @@ defmodule Convoy.Queue do
     GenServer.start_link(__MODULE__, opts, name: :"stream_#{stream_id(opts)}")
   end
 
-  def init(opts) do
+  def init(opts) when is_list(opts), do: opts |> Enum.into(%{}) |> init()
+
+  def init(opts) when is_map(opts) do
     stream_id = stream_id(opts)
     stream = opts[:stream]
     service = opts[:service] || State.default_service()
