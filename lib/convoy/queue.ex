@@ -154,14 +154,22 @@ defmodule Convoy.Queue do
 
   def handle_cast({:detach, handler_id}, {queue, opts}) do
     new_handlers = Map.delete(opts.handlers, handler_id)
+    handler_count = map_size(new_handlers)
 
     :telemetry.execute(
       [:convoy, :queue, :detach],
-      %{handler_count: map_size(new_handlers)},
+      %{handler_count: handler_count},
       %{stream: opts.stream, handler_id: handler_id}
     )
 
-    {:noreply, {queue, %{opts | handlers: new_handlers}}}
+    # reset iterators on all shards if there are no handlers left
+    shards =
+      case handler_count do
+        0 -> reset_iterators(opts.shards)
+        _ -> opts.shards
+      end
+
+    {:noreply, {queue, %{opts | handlers: new_handlers, shards: shards}}}
   end
 
   def handle_info(:transmit, {queue, opts}) do
@@ -264,6 +272,8 @@ defmodule Convoy.Queue do
 
   defp rotate_out([shard | shards]), do: {shard, shards}
   defp rotate_in(shards, shard), do: shards ++ [shard]
+
+  defp reset_iterators(shards), do: shards |> Enum.map(&%{&1 | iterator: nil})
 
   defp next_poll(nil), do: nil
   defp next_poll(interval) when interval <= 0, do: nil
