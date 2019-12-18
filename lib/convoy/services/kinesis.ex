@@ -7,6 +7,12 @@ defmodule Convoy.Services.Kinesis do
   def put_records(stream_name, records) do
     Kinesis.put_records(stream_name, records)
     |> ExAws.request!()
+
+    :telemetry.execute(
+      [:convoy, :kinesis, :put_records, :success],
+      %{count: length(records)},
+      %{stream: stream_name}
+    )
   end
 
   @impl true
@@ -18,13 +24,24 @@ defmodule Convoy.Services.Kinesis do
     |> ExAws.request()
     |> case do
       {:ok, %{"Records" => records, "NextShardIterator" => next_iterator}} ->
+        :telemetry.execute(
+          [:convoy, :kinesis, :get_records, :success],
+          %{count: length(records)},
+          %{iterator: iterator, next_iterator: next_iterator}
+        )
+
         {
           records |> decode_records(),
           next_iterator
         }
 
-      # TODO: error logging?
-      _ ->
+      unexpected ->
+        :telemetry.execute(
+          [:convoy, :kinesis, :get_records, :unexpected],
+          %{},
+          %{result: unexpected}
+        )
+
         {[], nil}
     end
   end

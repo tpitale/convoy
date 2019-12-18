@@ -27,7 +27,8 @@ defmodule Convoy.MixProject do
       {:ex_aws_kinesis, "~> 2.0.1"},
       {:poison, "~> 2.0"},
       {:gen_stage, "~> 0.11"},
-      {:mox, "~> 0.4", only: :test}
+      {:mox, "~> 0.4", only: :test},
+      {:telemetry, "~> 0.4.1"}
     ]
   end
 end
