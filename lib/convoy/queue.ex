@@ -141,11 +141,27 @@ defmodule Convoy.Queue do
   end
 
   def handle_cast({:attach, handler_id, handler}, {queue, opts}) do
-    {:noreply, {queue, %{opts | handlers: Map.put(opts.handlers, handler_id, handler)}}}
+    new_handlers = Map.put(opts.handlers, handler_id, handler)
+
+    :telemetry.execute(
+      [:convoy, :queue, :attach],
+      %{handler_count: map_size(new_handlers)},
+      %{stream: opts.stream, handler_id: handler_id}
+    )
+
+    {:noreply, {queue, %{opts | handlers: new_handlers}}}
   end
 
   def handle_cast({:detach, handler_id}, {queue, opts}) do
-    {:noreply, {queue, %{opts | handlers: Map.delete(opts.handlers, handler_id)}}}
+    new_handlers = Map.delete(opts.handlers, handler_id)
+
+    :telemetry.execute(
+      [:convoy, :queue, :detach],
+      %{handler_count: map_size(new_handlers)},
+      %{stream: opts.stream, handler_id: handler_id}
+    )
+
+    {:noreply, {queue, %{opts | handlers: new_handlers}}}
   end
 
   def handle_info(:transmit, {queue, opts}) do
@@ -195,6 +211,12 @@ defmodule Convoy.Queue do
       end
       |> opts.service.get_records(limit: limit)
 
+    :telemetry.execute(
+      [:convoy, :queue, :records_received],
+      %{count: length(records)},
+      %{stream: opts.stream, shard_id: shard.id, next_iterator: next_iterator}
+    )
+
     notify_handlers(records, opts.handlers, opts.stream_id)
 
     {
@@ -207,6 +229,12 @@ defmodule Convoy.Queue do
   defp transmit_to([], _stream, with: _service), do: nil
 
   defp transmit_to(records, stream, with: service) when is_list(records) do
+    :telemetry.execute(
+      [:convoy, :queue, :records_sent],
+      %{count: length(records)},
+      %{stream: stream}
+    )
+
     service.put_records(stream, records)
   end
 
