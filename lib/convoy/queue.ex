@@ -149,7 +149,8 @@ defmodule Convoy.Queue do
       %{stream: opts.stream, handler_id: handler_id}
     )
 
-    {:noreply, {queue, %{opts | handlers: new_handlers}}}
+    {_records, new_state} = get_records(10, {queue, %{opts | handlers: new_handlers}})
+    {:noreply, new_state}
   end
 
   def handle_cast({:detach, handler_id}, {queue, opts}) do
