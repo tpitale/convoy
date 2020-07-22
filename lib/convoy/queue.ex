@@ -196,6 +196,12 @@ defmodule Convoy.Queue do
     {:noreply, new_state}
   end
 
+  def handle_info({:ssl_closed, _}, state) do
+    :telemetry.execute([:convoy, :queue, :unhandled_ssl_closed], %{})
+
+    {:noreply, state}
+  end
+
   def handle_call(:current_queue, _from, {queue, opts}) do
     {:reply, queue |> :queue.to_list(), {queue, opts}}
   end
