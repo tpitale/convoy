@@ -41,7 +41,7 @@ defmodule Convoy.QueueTest do
 
     test "transmits a batch of records to service" do
       record = %Record{
-        data: %{id: 2_000_012_345} |> Poison.encode!(),
+        data: %{id: 2_000_012_345} |> Jason.encode!(),
         partition_key: "devices"
       }
 
@@ -78,7 +78,7 @@ defmodule Convoy.QueueTest do
 
     test "transmits immediately if batch_timeout is 0" do
       record = %Record{
-        data: %{id: 2_000_012_345} |> Poison.encode!(),
+        data: %{id: 2_000_012_345} |> Jason.encode!(),
         partition_key: "devices"
       }
 
