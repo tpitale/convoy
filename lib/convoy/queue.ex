@@ -267,7 +267,7 @@ defmodule Convoy.Queue do
   defp batch_transmit_after(_timeout), do: nil
 
   defp encode(data) when is_binary(data), do: data
-  defp encode(data), do: data |> Poison.encode!()
+  defp encode(data), do: data |> Jason.encode!()
 
   defp shards(stream, service) do
     service.describe_stream(stream)
