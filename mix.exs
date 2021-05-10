@@ -23,8 +23,8 @@ defmodule Convoy.MixProject do
   defp deps do
     [
       {:hackney, "~> 1.15"},
-      {:ex_aws, "~> 2.1.0"},
-      {:ex_aws_kinesis, "~> 2.0.1"},
+      {:ex_aws, "~> 2.1"},
+      {:ex_aws_kinesis, "~> 2.0"},
       {:jason, "~> 1.2"},
       {:gen_stage, "~> 1.0"},
       {:mox, "~> 0.4", only: :test},
